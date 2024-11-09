@@ -57,8 +57,6 @@ func OperationsRegistry() map[string]Operation {
 	return result
 }
 
-var Operations = OperationsRegistry()
-
 func GetConfigs() *Parent {
 	content, err := os.ReadFile("config.json")
 	if err != nil {
