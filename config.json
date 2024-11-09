@@ -1,0 +1,25 @@
+{
+  "config": [
+    {
+      "name": "test_to_test",
+      "depends_on": "",
+      "source_database_url": "",
+      "target_database_url": "",
+      "tables_config": [
+        {
+
+          "source_name": "test",
+          "source_fields": "*",
+          "source_filters": [
+            {
+              "field": "id",
+              "operation": "=>",
+              "value": "50"
+            }
+          ],
+          "target_name": "test_2"
+        }
+      ]
+    }
+  ]
+}

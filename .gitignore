@@ -23,3 +23,9 @@ go.work.sum
 
 # env file
 .env
+/.idea/runConfigurations/dbexchange.xml
+/.idea/.gitignore
+/.idea/dataSources.xml
+/.idea/dbexchange.iml
+/.idea/modules.xml
+/.idea/vcs.xml
