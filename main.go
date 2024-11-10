@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"log"
 	"os"
-	"strings"
 )
 
 /*
@@ -71,40 +71,48 @@ func GetConfigs() *Parent {
 	return &config
 }
 
-func getDatabaseConn(config Config) *pgx.Conn {
-	conn, err := pgx.Connect(context.Background(), config.SourceDatabaseUrl)
+func getSourceDatabaseConn(config Config) *pgx.Conn {
+	return getDatabaseConn(config.SourceDatabaseUrl)
+}
+
+func getTargetDatabaseConn(config Config) *pgx.Conn {
+	return getDatabaseConn(config.TargetDatabaseUrl)
+}
+
+func getDatabaseConn(url string) *pgx.Conn {
+	conn, err := pgx.Connect(context.Background(), url)
 	if err != nil {
 		log.Fatal("Unable to connect to source database.", err)
 	}
 	return conn
 }
 
-func convertToSting(data []any) []string {
-	result := make([]string, len(data))
-	for _, d := range data {
-		result = append(result, fmt.Sprintf("%v", d))
+func getColumnsNames(desc []pgconn.FieldDescription) []string {
+	var result []string
+	for _, d := range desc {
+		result = append(result, fmt.Sprintf("%v", d.Name))
 	}
 	return result
-}
 
+}
 func main() {
 	configs := GetConfigs()
 	fmt.Println(configs)
 
 	for _, config := range configs.Configuration {
-		sourceConn := getDatabaseConn(config)
+		sourceConn := getSourceDatabaseConn(config)
 		defer sourceConn.Close(context.Background())
 
-		targetConn := getDatabaseConn(config)
+		targetConn := getTargetDatabaseConn(config)
 		defer targetConn.Close(context.Background())
 
 		var selectQuery string
-		var insertQuery string
+		var targetTableName string
 
 		log.Println("Initializing the", config.Name, "process")
 		for _, table := range config.TablesConfig {
 			selectQuery = fmt.Sprintf("SELECT %s FROM %s \n", table.SourceFields, table.SourceName)
-			insertQuery = fmt.Sprintf("INSERT INTO %s (%s) \n", table.TargetName, table.SourceFields)
+			targetTableName = table.TargetName
 			if len(table.SourceFilters) > 0 {
 				selectQuery += "WHERE \n"
 				for _, filter := range table.SourceFilters {
@@ -118,33 +126,42 @@ func main() {
 		}
 
 		rows, err := sourceConn.Query(context.Background(), selectQuery)
-		chunkSize := 1000
-		insertQuery += "VALUES \n"
 		if err != nil {
 			log.Fatal("Unable to get data from", config.Name, err)
 		}
+
+		chunkSize := 1000
 		count := 0
+		cols := getColumnsNames(rows.FieldDescriptions())
+		var rowsToInsert [][]any
 		for rows.Next() {
 			data, err := rows.Values()
 			if err != nil {
 				log.Println("Unable to get rows to", config.Name, err)
 			}
-			dataConverted := convertToSting(data)
-			insertQuery += "("
-			insertQuery += strings.Join(dataConverted, ",")
-			insertQuery += ")"
+			rowsToInsert = append(rowsToInsert, data)
 
 			count += 1
 
 			if count >= chunkSize {
-				_, err = targetConn.Exec(context.Background(), insertQuery)
+				_, err = targetConn.CopyFrom(
+					context.Background(),
+					pgx.Identifier{targetTableName},
+					cols,
+					pgx.CopyFromRows(rowsToInsert),
+				)
 				if err != nil {
 					log.Fatal("Unable to insert data into", config.Name, err)
 				}
 			}
 
 		}
-		_, err = targetConn.Exec(context.Background(), insertQuery)
+		_, err = targetConn.CopyFrom(
+			context.Background(),
+			pgx.Identifier{targetTableName},
+			cols,
+			pgx.CopyFromRows(rowsToInsert),
+		)
 		if err != nil {
 			log.Fatal("Unable to insert data into", config.Name, err)
 		}

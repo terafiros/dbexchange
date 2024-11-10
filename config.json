@@ -3,8 +3,8 @@
     {
       "name": "test_to_test",
       "depends_on": "",
-      "source_database_url": "",
-      "target_database_url": "",
+      "source_database_url": "postgres://postgres:postgres@localhost/superinsert",
+      "target_database_url": "postgres://postgres:postgres@localhost/superinsert2",
       "tables_config": [
         {
 
@@ -13,11 +13,11 @@
           "source_filters": [
             {
               "field": "id",
-              "operation": "=>",
-              "value": "50"
+              "operation": ">=",
+              "value": "2"
             }
           ],
-          "target_name": "test_2"
+          "target_name": "test2"
         }
       ]
     }
